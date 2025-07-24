@@ -1,14 +1,13 @@
 import { Module } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
 import { DermantinService } from "./dermantin.service";
-import { DermantinResolver } from "./dermantin.resolver";
-import { Dermantin } from "./entities/dermantin.entity";
-import { Category } from "../category/entities/category.entity";
 import { DermantinController } from "./dermantin.controller";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { Category } from "src/category/entities/category.entity";
+import { Dermantin } from "./entities/dermantin.entity";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Dermantin, Category])],
+  imports: [TypeOrmModule.forFeature([Category, Dermantin])],
   controllers: [DermantinController],
-  providers: [DermantinService, DermantinResolver],
+  providers: [DermantinService],
 })
 export class DermantinModule {}

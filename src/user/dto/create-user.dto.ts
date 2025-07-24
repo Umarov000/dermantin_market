@@ -1,45 +1,29 @@
-
 import { InputType, Field } from "@nestjs/graphql";
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEnum, IsNotEmpty, IsPhoneNumber, IsString } from "class-validator";
-import {
-  UserLang,
-  UserRegion,
-  UserRole,
-} from "../../user/entities/user.entity";
+import { UserRole, UserRegion, UserLang } from "../entities/user.entity";
 
-@InputType() 
+@InputType()
 export class CreateUserDto {
   @Field()
-  @ApiProperty({ example: "Ali Valiyev" })
-  @IsNotEmpty()
-  @IsString()
+  @ApiProperty({
+    example: "Ali Valiyev",
+    description: "Foydalanuvchi to‘liq ismi",
+  })
   fullname: string;
 
   @Field()
-  @ApiProperty({ example: "+998901234567" })
-  @IsNotEmpty()
-  @IsPhoneNumber("UZ") 
+  @ApiProperty({ example: "+998901234567", description: "Telefon raqami" })
   phone: string;
 
-  @Field()
-  @ApiProperty({ example: "StrongPassword123" })
-  @IsNotEmpty()
-  @IsString()
-  password: string;
-
-  @Field(() => UserLang)
-  @ApiProperty({ enum: UserLang })
-  @IsEnum(UserLang)
-  lang: UserLang;
+  @Field(() => UserRole)
+  @ApiProperty({ enum: UserRole, description: "Foydalanuvchi roli" })
+  role: UserRole;
 
   @Field(() => UserRegion)
-  @ApiProperty({ enum: UserRegion })
-  @IsEnum(UserRegion)
+  @ApiProperty({ enum: UserRegion, description: "Hudud (viloyat)" })
   region: UserRegion;
 
-  @Field(() => UserRole)
-  @ApiProperty({ enum: UserRole })
-  @IsEnum(UserRole)
-  role: UserRole;
+  @Field(() => UserLang)
+  @ApiProperty({ enum: UserLang, description: "Til (uz yoki ru)" })
+  lang: UserLang;
 }

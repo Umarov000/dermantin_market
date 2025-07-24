@@ -1,56 +1,40 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Res,
-  HttpCode,
-  HttpStatus,
-} from "@nestjs/common";
-import { Response } from "express";
+import { Body, Controller, HttpCode, Param, Post, Res } from "@nestjs/common";
 import { AuthService } from "./auth.service";
-import { CreateUserDto } from "../user/dto/create-user.dto";
 import { CreateAdminDto } from "../admin/dto/create-admin.dto";
-import { LoginDto } from "../user/dto/login.dto";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Response } from "express";
+import { CookieGetter } from "src/common/decorators/cookie-getter.decorator";
+import { LoginAdminDto } from "src/admin/dto/login-admin.dto";
 
-@ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post("register/user")
-  @ApiOperation({ summary: "Register user (USER/MANAGER)" })
-  @ApiResponse({ status: 201, description: "User registered" })
-  async registerUser(@Body() dto: CreateUserDto) {
-    return this.authService.registerUser(dto);
+  @Post("registration")
+  async registration(@Body() createAdminDto: CreateAdminDto) {
+    return this.authService.registration(createAdminDto);
   }
 
-  @Post("register/admin")
-  @ApiOperation({ summary: "Register admin" })
-  @ApiResponse({ status: 201, description: "Admin registered" })
-  async registerAdmin(@Body() dto: CreateAdminDto) {
-    return this.authService.registerAdmin(dto);
-  }
-
-  @Post("login/user")
-  @ApiOperation({ summary: "User/Manager login" })
-  async loginUser(
-    @Body() dto: LoginDto,
+  @Post("login")
+  async login(
+    @Body() loginAdminDto: LoginAdminDto,
     @Res({ passthrough: true }) res: Response
   ) {
-    return this.authService.loginUser(dto.phone, dto.password, res);
+    return this.authService.login(loginAdminDto, res);
   }
 
   @Post("logout")
-  @ApiOperation({ summary: "Logout user/admin" })
-  async logout(@Res({ passthrough: true }) res: Response) {
-    return this.authService.logout(res);
+  logout(@Res({ passthrough: true }) res: Response): string {
+    res.clearCookie("refreshToken");
+    return "Logged out successfully";
   }
 
-  @Post("refresh-token")
-  @ApiOperation({ summary: "Refresh token" })
-  async refresh(@Res({ passthrough: true }) res: Response) {
-    const token = res.req.cookies?.refresh_token;
-    return this.authService.refreshToken(token, res);
+  @HttpCode(200)
+  @Post(":id/refresh")
+  refresh(
+    @Param("id") id: string,
+    @CookieGetter("refreshToken") refreshToken: string,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    return this.authService.refreshToken(Number(id), refreshToken, res);
   }
 }

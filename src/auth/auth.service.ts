@@ -1,130 +1,147 @@
 import {
-  Injectable,
-  UnauthorizedException,
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
+import { JwtService } from "@nestjs/jwt";
+import { AdminService } from "src/admin/admin.service";
 import * as bcrypt from "bcrypt";
+import { LoginAdminDto } from "src/admin/dto/login-admin.dto";
+import { CreateAdminDto } from "src/admin/dto/create-admin.dto";
 import { Response } from "express";
-import { Repository } from "typeorm";
-import { JwtService } from "../common/services/jwt.service";
-import { Admin } from "../admin/entities/admin.entity";
-import { User } from "../user/entities/user.entity";
-import { CreateUserDto } from "../user/dto/create-user.dto";
-import { CreateAdminDto } from "../admin/dto/create-admin.dto";
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(Admin)
-    private readonly adminRepo: Repository<Admin>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    private readonly jwtService: JwtService
+    private readonly adminService: AdminService,
+    private jwtService: JwtService
   ) {}
 
-  async registerUser(dto: CreateUserDto) {
-    const exist = await this.userRepo.findOneBy({ phone: dto.phone });
-    if (exist) throw new ForbiddenException("User already exists");
+  async generateTokens(admin) {
+    const payload = {
+      id: admin.id,
+      is_active: admin.is_active,
+      is_creator: admin.is_creator,
+    };
 
-    const hashed = await bcrypt.hash(dto.password, 10);
-    const user = this.userRepo.create({ ...dto, password: hashed });
-    return this.userRepo.save(user);
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: process.env.ADMIN_ACCESS_TOKEN_KEY,
+        expiresIn: process.env.ADMIN_ACCESS_TOKEN_TIME,
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: process.env.ADMIN_REFRESH_TOKEN_KEY,
+        expiresIn: process.env.ADMIN_REFRESH_TOKEN_TIME,
+      }),
+    ]);
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 
-  async registerAdmin(dto: CreateAdminDto) {
-    const exist = await this.adminRepo.findOneBy({ email: dto.email });
-    if (exist) throw new ForbiddenException("Admin already exists");
-
-    const hashed = await bcrypt.hash(dto.password, 10);
-    const admin = this.adminRepo.create({ ...dto, password: hashed });
-    return this.adminRepo.save(admin);
-  }
-
-  async loginUser(phone: string, password: string, res: Response) {
-    const user = await this.userRepo.findOne({
-      where: { phone },
-      select: ["id", "fullname", "password", "phone", "role"],
-    });
-    if (!user) throw new UnauthorizedException("Foydalanuvchi topilmadi");
-
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) throw new UnauthorizedException("Parol noto'g'ri");
-
-    const access_token = this.jwtService.sign(
-      { sub: user.id, role: user.role },
-      false
-    );
-    const refresh_token = this.jwtService.signRefresh(
-      { sub: user.id, role: user.role },
-      false
-    );
-
-    res.cookie("refresh_token", refresh_token, {
-      httpOnly: true,
-      sameSite: "strict",
-    });
-
-    return { access_token, user };
-  }
-
-  async loginAdmin(identifier: string, password: string, res: Response) {
-    const admin = await this.adminRepo.findOne({
-      where: { email: identifier },
-      select: ["id", "email", "password", "full_name"],
-    });
-    if (!admin) throw new UnauthorizedException("Admin not found");
-
-    const match = await bcrypt.compare(password, admin.password);
-    if (!match) throw new UnauthorizedException("Incorrect password");
-
-    const access_token = this.jwtService.sign(
-      { sub: admin.id, isAdmin: true },
-      true
-    );
-    const refresh_token = this.jwtService.signRefresh(
-      { sub: admin.id, isAdmin: true },
-      true
-    );
-
-    res.cookie("refresh_token", refresh_token, {
-      httpOnly: true,
-      sameSite: "strict",
-    });
-
-    return { access_token, admin };
-  }
-
-  async refreshToken(token: string, res: Response) {
-    if (!token) throw new UnauthorizedException("No token provided");
-
-    try {
-      const payload = this.jwtService.verifyRefresh(token, false);
-
-      const isAdmin = payload?.isAdmin === true;
-
-      const newAccess = this.jwtService.sign(
-        { sub: payload.sub, isAdmin },
-        isAdmin
-      );
-      const newRefresh = this.jwtService.signRefresh(
-        { sub: payload.sub, isAdmin },
-        isAdmin
-      );
-
-      res.cookie("refresh_token", newRefresh, {
-        httpOnly: true,
-        sameSite: "strict",
-      });
-
-      return { access_token: newAccess };
-    } catch {
-      throw new UnauthorizedException("Invalid token");
+  async registration(createAdminDto: CreateAdminDto) {
+    const candidate = await this.adminService.findByEmail(createAdminDto.email);
+    if (candidate) {
+      throw new ConflictException("This user already exists");
     }
+    const admin = await this.adminService.create(createAdminDto);
+    return { adminId: admin.id };
   }
 
-  async logout(res: Response) {
-    res.clearCookie("refresh_token");
-    return { message: "Logged out" };
+  async login(loginAdminDto: LoginAdminDto, res: Response) {
+    const admin = await this.adminService.findByEmail(loginAdminDto.email);
+    if (!admin) {
+      throw new UnauthorizedException("Email or password is incorrect");
+    }
+
+    const isMatch = await bcrypt.compare(
+      loginAdminDto.password,
+      admin.password
+    );
+
+    if (!isMatch) {
+      throw new UnauthorizedException("Email or password is incorrect");
+    }
+
+    const { accessToken, refreshToken } = await this.generateTokens(admin);
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 7);
+    await this.adminService.updateRefreshToken(admin.id, hashedRefreshToken);
+
+    res.cookie("refreshToken", refreshToken, {
+      maxAge: +process.env.COOKIE_TIME!,
+      httpOnly: true,
+    });
+
+    return { adminId: admin.id, accessToken };
+  }
+
+  async logout(refreshToken: string, res: Response) {
+    let adminData: any;
+    try {
+      adminData = await this.jwtService.verify(refreshToken, {
+        secret: process.env.REFRESH_TOKEN_KEY,
+      });
+    } catch (error) {
+      throw new BadRequestException(error);
+    }
+
+    if (!adminData) {
+      throw new ForbiddenException("User not verified");
+    }
+
+    await this.adminService.updateRefreshToken(adminData.id, "");
+
+    res.clearCookie("refreshToken");
+    return {
+      message: "User logged out successfully",
+    };
+  }
+
+  async refreshToken(
+    userId: number,
+    refreshTokenFromCookie: string,
+    res: Response
+  ) {
+    const decodedToken = await this.jwtService.decode(refreshTokenFromCookie);
+
+    if (userId !== decodedToken["id"]) {
+      throw new ForbiddenException("Ruxsat etilmagan");
+    }
+
+    const user = await this.adminService.findOne(userId);
+
+    if (!user || !user.hashed_refresh_token) {
+      throw new NotFoundException("user not found");
+    }
+
+    const tokenMatch = await bcrypt.compare(
+      refreshTokenFromCookie,
+      user.hashed_refresh_token
+    );
+
+    if (!tokenMatch) {
+      throw new ForbiddenException("Forbidden");
+    }
+
+    const { accessToken, refreshToken } = await this.generateTokens(user);
+
+    const newHashedRefreshToken = await bcrypt.hash(refreshToken, 7);
+    await this.adminService.updateRefreshToken(user.id, newHashedRefreshToken);
+
+    res.cookie("refreshToken", refreshToken, {
+      maxAge: Number(process.env.COOKIE_TIME),
+      httpOnly: true,
+    });
+
+    const response = {
+      message: "User refreshed",
+      userId: user.id,
+      accessToken: accessToken,
+    };
+    return response;
   }
 }

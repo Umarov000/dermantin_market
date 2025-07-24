@@ -3,13 +3,22 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { GraphQLModule } from "@nestjs/graphql";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { CategoryModule } from "./category/category.module";
-import { AdminModule } from "./admin/admin.module";
-import { UserModule } from "./user/user.module";
-import { AuthModule } from "./auth/auth.module";
-import { DermantinModule } from "./dermantin/dermantin.module";
-import { DermantinImageModule } from "./dermantin-img/dermantin-img.module";
-import { AdvertisementModule } from "./adverstmen/adverstmen.module";
+import { CategoryModule } from './category/category.module';
+import { AdminModule } from './admin/admin.module';
+import { UserModule } from './user/user.module';
+import { AuthModule } from './auth/auth.module';
+import { DermantinModule } from './dermantin/dermantin.module';
+import { AdvertisementsModule } from './advertisements/advertisements.module';
+import { DermantinImagesModule } from './dermantin-images/dermantin-images.module';
+import { RequestModule } from './request/request.module';
+import { StoreModule } from './store/store.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { OrderModule } from './order/order.module';
+import { SocialsModule } from './socials/socials.module';
+import { PaymentsModule } from './payments/payments.module';
+import { HistoryModule } from './history/history.module';
+import { ChatModule } from './chat/chat.module';
+import { MessageModule } from './message/message.module';
 
 @Module({
   imports: [
@@ -37,13 +46,38 @@ import { AdvertisementModule } from "./adverstmen/adverstmen.module";
         synchronize: true,
       }),
     }),
+
     CategoryModule,
+
     AdminModule,
+
     UserModule,
+
     AuthModule,
+
     DermantinModule,
-    DermantinImageModule,
-    AdvertisementModule,
+
+    AdvertisementsModule,
+
+    DermantinImagesModule,
+
+    RequestModule,
+
+    StoreModule,
+
+    ReviewsModule,
+
+    OrderModule,
+
+    SocialsModule,
+
+    PaymentsModule,
+
+    HistoryModule,
+
+    ChatModule,
+
+    MessageModule,
   ],
   controllers: [],
   providers: [],
